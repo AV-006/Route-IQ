@@ -7,10 +7,11 @@ from __future__ import annotations
 from app.core.config import settings
 from app.core.constants import DOMAIN_NAMES
 from app.intelligence.confidence import compute_confidence, top_k_domains
+from app.intelligence.complexity import PromptComplexityEngine
 from app.intelligence.domain_scorer import HybridDomainScorer
 from app.intelligence.embeddings import EmbeddingService
 from app.intelligence.feature_extractor import extract_text_features
-from app.models.schemas import AnalyzeResponse, DomainBreakdownEntry, TextFeatures
+from app.models.schemas import AnalyzeResponse, ComplexitySignal, DomainBreakdownEntry, TextFeatures
 from app.utils.math_utils import normalize_nonneg_sum_to_one, uniform_distribution
 
 
@@ -28,6 +29,7 @@ class PromptDomainAnalyzer:
     ) -> None:
         self._embed = embedding_service
         self._scorer = scorer or HybridDomainScorer()
+        self._complexity = PromptComplexityEngine()
 
     def analyze(self, prompt: str) -> AnalyzeResponse:
         """
@@ -55,6 +57,12 @@ class PromptDomainAnalyzer:
         confidence = compute_confidence(normalized, token_count=text_features.token_count)
         tops = top_k_domains(normalized, k=3)
 
+        complexity = self._complexity.analyze(
+            prompt=stripped,
+            domain_scores=normalized,
+            text_features=text_features,
+        )
+
         per_domain_public = {
             d: DomainBreakdownEntry(
                 semantic_score=round(breakdown[d].semantic_score, 4),
@@ -70,6 +78,18 @@ class PromptDomainAnalyzer:
             for d in DOMAIN_NAMES
         }
 
+        complexity_signals_public = {
+            name: ComplexitySignal(
+                name=s.name,
+                score=round(s.score, 4),
+                weight=round(s.weight, 4),
+                contribution=round(s.contribution, 6),
+                evidence=list(s.evidence),
+                detail=dict(s.detail),
+            )
+            for name, s in complexity.signals.items()
+        }
+
         return AnalyzeResponse(
             prompt=prompt,
             domain_scores=normalized,
@@ -77,4 +97,7 @@ class PromptDomainAnalyzer:
             confidence=round(confidence, 4),
             per_domain_breakdown=per_domain_public,
             text_features=text_features,
+            complexity_score=complexity.complexity_score,
+            complexity_band=complexity.complexity_band,
+            complexity_signals=complexity_signals_public,
         )

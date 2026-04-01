@@ -30,6 +30,18 @@ class Sample:
 
 
 SAMPLES: List[Sample] = [
+    Sample("complexity_low_factual", "What is photosynthesis?", "complexity_low"),
+    Sample(
+        "complexity_medium_single_task_constraints",
+        "Explain what polymorphism means in OOP and give one short example. Keep it under 120 words.",
+        "complexity_medium",
+    ),
+    Sample(
+        "complexity_high_multitask",
+        "Compare BFS vs DFS, explain why one should be preferred for shortest paths, analyze edge cases, "
+        "then implement BFS in Python and return only valid JSON with keys: explanation, code, complexity.",
+        "complexity_high",
+    ),
     Sample("coding_linked_list", "Write a Python function to detect a cycle in a linked list", "coding"),
     Sample("math_integral", "Solve this integral step by step: int x*exp(-x^2) dx", "math"),
     Sample("summarize_paper", "Summarize this research paper in 5 bullet points", "summarization"),

@@ -2,6 +2,8 @@
 
 Production-oriented **stage-1** component for an LLM router: given a user prompt, it returns a **soft distribution** over eight semantic domains (weights sum to 1.0), top domains, a **confidence** score, per-domain score breakdowns, and lightweight **text features** for debugging and future routing.
 
+It also returns an overall **prompt complexity** estimate (one score per prompt, not per-domain), with an explainable signal breakdown.
+
 No model routing, no Bedrock/LLM calls, no persistence—**prompt analysis only**.
 
 ## Supported domains
@@ -69,6 +71,18 @@ curl -X POST http://localhost:8000/analyze ^
   },
   "top_domains": ["coding", "reasoning", "transformation"],
   "confidence": 0.78,
+  "complexity_score": 0.62,
+  "complexity_band": "medium",
+  "complexity_signals": {
+    "length": {
+      "name": "length",
+      "score": 0.18,
+      "weight": 0.18,
+      "contribution": 0.0324,
+      "evidence": ["token_count=22"],
+      "detail": {"token_count": 22, "normalizer": 120.0}
+    }
+  },
   "per_domain_breakdown": {
     "coding": {
       "semantic_score": 0.82,

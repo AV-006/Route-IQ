@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,23 @@ class AnalyzeResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     per_domain_breakdown: Dict[str, DomainBreakdownEntry]
     text_features: TextFeatures
+    complexity_score: float = Field(..., ge=0.0, le=1.0)
+    complexity_band: Literal["low", "medium", "high"]
+    complexity_signals: Dict[str, "ComplexitySignal"]
+
+
+class ComplexitySignal(BaseModel):
+    """Explainable complexity signal for demo/debugging."""
+
+    name: str
+    score: float = Field(..., ge=0.0, le=1.0)
+    weight: float = Field(..., ge=0.0)
+    contribution: float = Field(..., ge=0.0)
+    evidence: List[str] = Field(default_factory=list)
+    detail: Dict[str, object] = Field(default_factory=dict)
+
+
+AnalyzeResponse.model_rebuild()
 
 
 class DomainMetadata(BaseModel):
