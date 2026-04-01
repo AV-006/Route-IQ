@@ -15,6 +15,7 @@ from app.intelligence.complexity_escalation import apply_escalation
 from app.intelligence.complexity_signals import (
     ComplexitySignalResult,
     ambiguity_signal,
+    cognitive_load_signal,
     constraints_signal,
     length_signal,
     multi_domain_signal,
@@ -70,6 +71,8 @@ class PromptComplexityEngine:
         signals["technical_structure"] = technical_structure_signal(p, text_features, self._weights.technical_structure)
         signals["ambiguity"] = ambiguity_signal(p, self._weights.ambiguity)
         signals["optimization_tradeoff"] = optimization_tradeoff_signal(p, self._weights.optimization_tradeoff)
+        # New: cognitive_load emphasizes genuine thinking difficulty beyond structure.
+        signals["cognitive_load"] = cognitive_load_signal(p, domain_scores, getattr(self._weights, "cognitive_load", 0.18))
 
         # Weighted average with renormalization (robust to weight edits).
         total_w = sum(max(0.0, s.weight) for s in signals.values())

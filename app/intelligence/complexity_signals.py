@@ -61,6 +61,8 @@ _REASONING_PHRASES = [
     "under what assumptions",
     "why does this work",
     "why does this apply",
+    "why this is better",
+    "why this option is better",
 ]
 
 _AMBIGUITY_PHRASES = [
@@ -75,6 +77,53 @@ _AMBIGUITY_PHRASES = [
     "if uncertain",
     "make reasonable assumptions",
     "no assumptions",
+    "conflicting constraints",
+    "contradiction",
+    "contradictions",
+]
+
+# Cognitive-load specific phrases: ambiguity, assumptions, alternatives, defense.
+_COGNITIVE_LOAD_PHRASES = [
+    "ambiguous",
+    "ambiguity",
+    "conflicting constraints",
+    "hidden assumptions",
+    "assumptions",
+    "infer",
+    "infer missing information",
+    "resolve",
+    "reconcile",
+    "contradiction",
+    "contradictions",
+    "evaluate alternatives",
+    "compare alternatives",
+    "choose the best",
+    "best interpretation",
+    "most reasonable interpretation",
+    "justify",
+    "justification",
+    "defend",
+    "defend your answer",
+    "explain why",
+    "why this is better",
+    "reason carefully",
+    "do not jump to the answer",
+    "decision-making",
+    "optimization under constraints",
+    "prioritize under constraints",
+]
+
+_COGNITIVE_TECH_PHRASES = [
+    "edge case",
+    "edge cases",
+    "failure mode",
+    "failure modes",
+    "correctness",
+    "prove why",
+    "why this works",
+    "invariant",
+    "recurrence relation",
+    "compare memoization vs tabulation",
 ]
 
 _OPTIMIZATION_TRADEOFF_PHRASES = [
@@ -323,6 +372,52 @@ def reasoning_signal(prompt: str, domain_scores: Mapping[str, float], weight: fl
             "reasoning_domain_score": round(dom, 4),
             "phrase_score": round(phrase_score, 4),
             "dom_score_scaled": round(dom_score, 4),
+        },
+    )
+
+
+def cognitive_load_signal(
+    prompt: str,
+    domain_scores: Mapping[str, float],
+    weight: float,
+) -> ComplexitySignalResult:
+    """
+    Cognitive complexity: ambiguity resolution, contradiction handling,
+    hidden assumptions, alternatives, justification, and edge-case / correctness.
+    """
+    low = canonicalize_prompt_for_matching(prompt).lower()
+
+    cog_hits = _distinct_matched_phrases(low, _COGNITIVE_LOAD_PHRASES)
+    tech_hits = _distinct_matched_phrases(low, _COGNITIVE_TECH_PHRASES)
+
+    phrase_score = clamp01(len(cog_hits) / 3.0)
+    tech_score = clamp01(len(tech_hits) / 3.0)
+
+    reasoning_dom = float(domain_scores.get("reasoning", 0.0))
+    reasoning_dom_score = clamp01(reasoning_dom / 0.30)
+
+    # Heavier weight on explicit phrases; domain score acts as a floor.
+    combined = clamp01(0.65 * phrase_score + 0.20 * tech_score + 0.15 * reasoning_dom_score)
+
+    evidence: List[str] = []
+    if cog_hits:
+        evidence.append(f"cognitive_hits={len(cog_hits)}")
+        evidence.extend(cog_hits)
+    if tech_hits:
+        evidence.append(f"technical_cog_hits={len(tech_hits)}")
+        evidence.extend(tech_hits)
+    evidence.append(f"reasoning_domain={round(reasoning_dom,4)}")
+
+    return ComplexitySignalResult(
+        name="cognitive_load",
+        score=round(combined, 4),
+        weight=weight,
+        evidence=evidence,
+        detail={
+            "phrase_score": round(phrase_score, 4),
+            "technical_phrase_score": round(tech_score, 4),
+            "reasoning_domain_score": round(reasoning_dom, 4),
+            "combined": round(combined, 4),
         },
     )
 

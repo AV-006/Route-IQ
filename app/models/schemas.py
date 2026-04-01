@@ -80,6 +80,8 @@ class ComplexityEscalation(BaseModel):
     base_score: float = Field(..., ge=0.0, le=1.0)
     boosts_applied: List[ComplexityBoostApplied] = Field(default_factory=list)
     total_boost: float = Field(..., ge=0.0)
+    deboosts_applied: List[ComplexityBoostApplied] = Field(default_factory=list)
+    total_deboost: float = Field(..., ge=0.0)
     final_score: float = Field(..., ge=0.0, le=1.0)
 
 

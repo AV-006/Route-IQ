@@ -118,6 +118,15 @@ class PromptDomainAnalyzer:
                     for b in list(complexity.escalation.get("boosts_applied", []))
                 ],
                 total_boost=float(complexity.escalation.get("total_boost", 0.0)),
+                deboosts_applied=[
+                    ComplexityBoostApplied(
+                        rule=str(b.get("rule")),
+                        boost=float(b.get("deboost", 0.0)),
+                        reason=str(b.get("reason")),
+                    )
+                    for b in list(complexity.escalation.get("deboosts_applied", []))
+                ],
+                total_deboost=float(complexity.escalation.get("total_deboost", 0.0)),
                 final_score=float(complexity.escalation.get("final_score", complexity.complexity_score)),
             ),
         )
