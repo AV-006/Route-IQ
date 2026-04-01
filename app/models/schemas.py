@@ -6,6 +6,7 @@ from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field
 from app.schemas.routing import SelectedModelResult
+from app.schemas.invocation import ModelInvocationResponse
 
 
 class AnalyzeRequest(BaseModel):
@@ -59,6 +60,7 @@ class AnalyzeResponse(BaseModel):
     complexity_signals: Dict[str, "ComplexitySignal"]
     complexity_escalation: "ComplexityEscalation"
     model_selection: SelectedModelResult | None = None
+    invocation_response: ModelInvocationResponse | None = None
 
 
 class ComplexitySignal(BaseModel):

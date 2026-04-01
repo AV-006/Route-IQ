@@ -16,6 +16,8 @@ from app.models.schemas import (
     HealthResponse,
 )
 from app.registry.model_registry import ModelRegistry
+from app.schemas.invocation import ModelInvocationRequest, ModelInvocationResponse
+from app.services.model_invoker import invoke_model
 from app.services.model_selector import select_best_model
 
 router = APIRouter()
@@ -83,7 +85,30 @@ async def analyze_prompt(
     registry = _get_registry(request)
     analysis = analyzer.analyze(body.prompt)
     selection = select_best_model(analysis, registry)
-    return analysis.model_copy(update={"model_selection": selection})
+    fallback_ids = [c.model_id for c in selection.ranked_candidates if c.model_id != selection.selected_model]
+    invocation = invoke_model(
+        body.prompt,
+        selection.selected_model,
+        fallback_model_ids=fallback_ids,
+        registry=registry,
+    )
+    return analysis.model_copy(update={"model_selection": selection, "invocation_response": invocation})
+
+
+@router.post("/models/invoke", response_model=ModelInvocationResponse)
+async def invoke_model_endpoint(
+    body: ModelInvocationRequest,
+    request: Request,
+) -> ModelInvocationResponse:
+    registry = _get_registry(request)
+    return invoke_model(
+        body.prompt,
+        body.model_id,
+        max_tokens=body.max_tokens,
+        temperature=body.temperature,
+        stop_sequences=body.stop_sequences,
+        registry=registry,
+    )
 
 
 @router.post("/models/select")
