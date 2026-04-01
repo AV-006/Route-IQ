@@ -4,6 +4,7 @@ High-level orchestration: embed prompt, score domains, normalize, attach feature
 
 from __future__ import annotations
 
+from app.core.config import settings
 from app.core.constants import DOMAIN_NAMES
 from app.intelligence.confidence import compute_confidence, top_k_domains
 from app.intelligence.domain_scorer import HybridDomainScorer
@@ -35,18 +36,23 @@ class PromptDomainAnalyzer:
         Embedding and prototypes must be initialized on the EmbeddingService.
         """
         stripped = prompt.strip()
+        text_features: TextFeatures = extract_text_features(stripped)
+
         prompt_vec = self._embed.encode_prompt(stripped)
-        semantic = self._embed.semantic_scores_unit_interval(prompt_vec)
-        breakdown = self._scorer.compute_breakdown(stripped, semantic)
+        raw_cos = self._embed.raw_cosine_similarities(prompt_vec)
+        semantic = self._embed.relative_semantic_scores(prompt_vec)
+        breakdown = self._scorer.compute_breakdown(stripped, semantic, raw_cos)
 
         raw_scores = {d: breakdown[d].raw_score for d in DOMAIN_NAMES}
-        normalized = normalize_nonneg_sum_to_one(raw_scores)
+        exp = settings.pre_normalize_raw_sharpen_exponent
+        sharpened = {d: max(0.0, raw_scores[d] ** exp) for d in DOMAIN_NAMES}
+        normalized = normalize_nonneg_sum_to_one(sharpened)
         if not normalized:
             normalized = uniform_distribution(list(DOMAIN_NAMES))
 
         normalized = {k: round(v, 4) for k, v in normalized.items()}
 
-        confidence = compute_confidence(normalized)
+        confidence = compute_confidence(normalized, token_count=text_features.token_count)
         tops = top_k_domains(normalized, k=3)
 
         per_domain_public = {
@@ -55,12 +61,14 @@ class PromptDomainAnalyzer:
                 keyword_score=round(breakdown[d].keyword_score, 4),
                 pattern_score=round(breakdown[d].pattern_score, 4),
                 intent_score=round(breakdown[d].intent_score, 4),
+                phrase_score=round(breakdown[d].phrase_score, 4),
                 raw_score=round(breakdown[d].raw_score, 4),
+                raw_cosine_similarity=round(breakdown[d].raw_cosine_similarity, 4),
+                matched_keywords=list(breakdown[d].matched_keywords),
+                matched_phrases=list(breakdown[d].matched_phrases),
             )
             for d in DOMAIN_NAMES
         }
-
-        text_features: TextFeatures = extract_text_features(stripped)
 
         return AnalyzeResponse(
             prompt=prompt,

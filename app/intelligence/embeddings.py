@@ -17,7 +17,7 @@ from sentence_transformers import SentenceTransformer
 from app.core.config import settings
 from app.core.constants import DOMAIN_NAMES
 from app.intelligence.domain_configs import DOMAIN_REGISTRY
-from app.utils.math_utils import cosine_similarity, cosine_to_unit_interval, normalize_l2
+from app.utils.math_utils import clamp01, cosine_similarity, normalize_l2
 
 logger = logging.getLogger(__name__)
 
@@ -77,16 +77,44 @@ class EmbeddingService:
         )[0].astype(np.float64)
         return normalize_l2(vec)
 
-    def semantic_scores_unit_interval(self, prompt_vec: NDArray[np.floating]) -> Dict[str, float]:
+    def raw_cosine_similarities(self, prompt_vec: NDArray[np.floating]) -> Dict[str, float]:
+        """Pairwise cosine similarity in native [-1, 1] range (L2-normalized vectors)."""
+        return {
+            domain: cosine_similarity(prompt_vec, self._prototypes[domain])
+            for domain in DOMAIN_NAMES
+        }
+
+    def relative_semantic_scores(self, prompt_vec: NDArray[np.floating]) -> Dict[str, float]:
         """
-        Cosine similarity between prompt and each prototype, mapped to [0,1].
+        Within-prompt relative semantic scores for hybrid routing.
+
+        Raw cosines are min-max normalized per prompt, then sharpened:
+
+            relative = (sim - min_sim) / (max_sim - min_sim + eps)
+            score = clamp01(relative ** sharpen_exponent)
+
+        This spreads mass across domains for a single prompt instead of flattening
+        all instruction-like texts toward similar raw cosine values.
         """
+        raw = self.raw_cosine_similarities(prompt_vec)
+        sims = [raw[d] for d in DOMAIN_NAMES]
+        min_s = min(sims)
+        max_s = max(sims)
+        eps = 1e-8
+        exp = settings.semantic_relative_sharpen_exponent
         scores: Dict[str, float] = {}
         for domain in DOMAIN_NAMES:
-            proto = self._prototypes[domain]
-            cos = cosine_similarity(prompt_vec, proto)
-            scores[domain] = cosine_to_unit_interval(cos)
+            sim = raw[domain]
+            relative = (sim - min_s) / (max_s - min_s + eps)
+            scores[domain] = clamp01(relative**exp)
         return scores
+
+    def semantic_scores_unit_interval(self, prompt_vec: NDArray[np.floating]) -> Dict[str, float]:
+        """
+        Back-compat alias: returns the same relative sharpened scores as
+        :meth:`relative_semantic_scores` (not raw cosine mapped to [0,1]).
+        """
+        return self.relative_semantic_scores(prompt_vec)
 
     @property
     def prototypes(self) -> Dict[str, NDArray[np.floating]]:

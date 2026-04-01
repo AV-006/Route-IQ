@@ -20,7 +20,16 @@ class DomainBreakdownEntry(BaseModel):
     keyword_score: float = Field(..., ge=0.0, le=1.0)
     pattern_score: float = Field(..., ge=0.0, le=1.0)
     intent_score: float = Field(..., ge=0.0, le=1.0)
+    phrase_score: float = Field(..., ge=0.0, le=1.0)
     raw_score: float = Field(..., ge=0.0, description="Weighted combination before global normalize")
+    raw_cosine_similarity: float = Field(
+        ...,
+        ge=-1.0,
+        le=1.0,
+        description="Raw cosine vs domain prototype (not min-max relativized)",
+    )
+    matched_keywords: List[str] = Field(default_factory=list)
+    matched_phrases: List[str] = Field(default_factory=list)
 
 
 class TextFeatures(BaseModel):
@@ -54,6 +63,7 @@ class DomainMetadata(BaseModel):
     keyword_count: int
     pattern_count: int
     intent_verb_count: int
+    phrase_boost_count: int
 
 
 class DomainsListResponse(BaseModel):

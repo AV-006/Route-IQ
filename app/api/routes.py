@@ -51,6 +51,7 @@ async def list_domains() -> DomainsListResponse:
                 keyword_count=len(d.keywords),
                 pattern_count=len(d.patterns),
                 intent_verb_count=len(d.intent_verbs),
+                phrase_boost_count=len(d.phrase_boosts),
             )
         )
     return DomainsListResponse(

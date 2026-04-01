@@ -1,7 +1,8 @@
 """
 Confidence estimate from the final domain distribution.
 
-Higher confidence when the distribution is peaky (low entropy, large top1-top2 gap).
+Higher confidence when the distribution is peaky (low entropy, large top1-top2 gap)
+and when the dominant domain clearly leads. Very short or weak prompts are damped.
 """
 
 from __future__ import annotations
@@ -17,13 +18,18 @@ def sorted_domain_scores(domain_scores: Dict[str, float]) -> List[Tuple[str, flo
     return sorted(domain_scores.items(), key=lambda x: x[1], reverse=True)
 
 
-def compute_confidence(domain_scores: Dict[str, float]) -> float:
+def compute_confidence(
+    domain_scores: Dict[str, float],
+    token_count: int | None = None,
+) -> float:
     """
-    Combine normalized entropy margin and top-1 vs top-2 separation.
+    Combine entropy margin, top-1 vs top-2 separation, and leader share.
 
     - Entropy near log(n) (uniform) yields low contribution.
     - Entropy near 0 (single spike) yields high contribution.
     - Larger gap between best and second-best domain increases confidence.
+    - Strong top-1 share and top-1+top2 mass increase confidence for clear routing.
+    - Very short prompts (e.g. \"hi\") are intentionally damped.
 
     Returns a value in [0, 1].
     """
@@ -31,7 +37,6 @@ def compute_confidence(domain_scores: Dict[str, float]) -> float:
     if n == 0:
         return 0.0
 
-    # Ensure we only use supported domains in order
     probs = {k: float(domain_scores.get(k, 0.0)) for k in DOMAIN_NAMES}
     total = sum(probs.values())
     if total <= 0.0:
@@ -43,25 +48,57 @@ def compute_confidence(domain_scores: Dict[str, float]) -> float:
     if h_max <= 0.0:
         entropy_component = 1.0
     else:
-        # Low entropy => high component
         entropy_component = 1.0 - (h / h_max)
         entropy_component = max(0.0, min(1.0, entropy_component))
 
     ranked = sorted_domain_scores(probs)
     top1 = ranked[0][1]
     top2 = ranked[1][1] if len(ranked) > 1 else 0.0
+    top3 = ranked[2][1] if len(ranked) > 2 else 0.0
     gap = top1 - top2
-    # Gap of ~0.35+ should feel "confident" for 8-way distribution
-    gap_component = max(0.0, min(1.0, gap / 0.35))
+    # ~0.22+ gap on a sharpened distribution should read as confident
+    gap_component = max(0.0, min(1.0, gap / 0.22))
 
-    # Weight entropy more than gap to penalize ambiguous flat distributions
-    combined = 0.55 * entropy_component + 0.45 * gap_component
+    # Leader share: rewards a single clear winner
+    leader_component = max(0.0, min(1.0, (top1 - 1.0 / n) / (1.0 - 1.0 / n)))
 
-    # Mild boost if top share is very dominant
-    dominance = top1**0.5  # sqrt softens extremes
-    combined = 0.85 * combined + 0.15 * dominance
+    # Top-2 mass: mixed-but-meaningful prompts (e.g. coding + reasoning)
+    top2_mass = top1 + top2
+    ceiling = min(1.0, 2.5 / n * 2)  # ~0.625 for n=8
+    concentration_component = max(0.0, min(1.0, (top2_mass - 2.0 / n) / (ceiling - 2.0 / n + 1e-8)))
 
-    return max(0.0, min(1.0, float(combined)))
+    uniform = 1.0 / n
+    margin_vs_uniform = max(0.0, top1 - uniform) / (1.0 - uniform + 1e-8)
+    margin_component = max(0.0, min(1.0, margin_vs_uniform))
+
+    combined = (
+        0.28 * entropy_component
+        + 0.30 * gap_component
+        + 0.18 * leader_component
+        + 0.12 * concentration_component
+        + 0.12 * margin_component
+    )
+
+    # Penalize three-way ties: if third place is close to second, reduce slightly
+    if top2 > 1e-9:
+        runner_spread = (top2 - top3) / top2
+        if runner_spread < 0.25:
+            combined *= 0.92
+
+    weak_signal = 1.0
+    if token_count is not None:
+        if token_count <= 1:
+            weak_signal = 0.22
+        elif token_count <= 2:
+            weak_signal = 0.48
+        elif token_count <= 3:
+            weak_signal = 0.78
+
+    if top1 < uniform + 0.04:
+        weak_signal *= 0.75
+
+    combined = max(0.0, min(1.0, combined * weak_signal))
+    return float(combined)
 
 
 def top_k_domains(domain_scores: Dict[str, float], k: int = 3) -> List[str]:
