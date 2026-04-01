@@ -36,7 +36,8 @@ The first request (or the sample runner) will download **`BAAI/bge-small-en-v1.5
 From the **repository root** (parent of `app/`):
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+source app/.venv/bin/activate
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - `GET /` — health and service metadata  
