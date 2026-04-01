@@ -67,6 +67,14 @@ class EscalationConfig:
     reasoning_planning_tradeoff_boost: float = 0.08
     technical_teaching_boost: float = 0.06
 
+    # Deep reasoning escalation (ambiguity/assumptions + alternatives/justification)
+    deep_reasoning_combo_boost: float = 0.10
+    explicit_careful_reasoning_boost: float = 0.06
+
+    # De-escalation for structured transformation-only prompts
+    structured_transform_only_deboost: float = 0.08
+    mild_structure_overweight_deboost: float = 0.04
+
 
 BAND_THRESHOLDS = ComplexityBandThresholds()
 SIGNAL_WEIGHTS = ComplexitySignalWeights()
