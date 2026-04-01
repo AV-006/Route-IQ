@@ -15,6 +15,8 @@ from app.models.schemas import (
     DomainsListResponse,
     HealthResponse,
 )
+from app.registry.model_registry import ModelRegistry
+from app.services.model_selector import select_best_model
 
 router = APIRouter()
 
@@ -24,6 +26,13 @@ def _get_analyzer(request: Request) -> PromptDomainAnalyzer:
     if analyzer is None:
         raise RuntimeError("Analyzer not initialized; application lifespan may have failed")
     return analyzer
+
+
+def _get_registry(request: Request) -> ModelRegistry:
+    registry = getattr(request.app.state, "model_registry", None)
+    if registry is None:
+        raise RuntimeError("Model registry not initialized; application lifespan may have failed")
+    return registry
 
 
 @router.get("/", response_model=HealthResponse)
@@ -71,4 +80,36 @@ async def analyze_prompt(
     Uses hybrid semantic + keyword + pattern + intent scoring; results sum to 1.0.
     """
     analyzer = _get_analyzer(request)
-    return analyzer.analyze(body.prompt)
+    registry = _get_registry(request)
+    analysis = analyzer.analyze(body.prompt)
+    selection = select_best_model(analysis, registry)
+    return analysis.model_copy(update={"model_selection": selection})
+
+
+@router.post("/models/select")
+async def select_model_debug(
+    body: AnalyzeRequest,
+    request: Request,
+) -> dict:
+    """Debug endpoint: run analyzer + selector and return compact routing trace."""
+    analyzer = _get_analyzer(request)
+    registry = _get_registry(request)
+    analysis = analyzer.analyze(body.prompt)
+    selection = select_best_model(analysis, registry)
+    return {
+        "prompt": body.prompt,
+        "analysis_summary": {
+            "top_domains": analysis.top_domains,
+            "confidence": analysis.confidence,
+            "complexity_score": analysis.complexity_score,
+            "complexity_band": analysis.complexity_band,
+        },
+        "selected_model": {
+            "model_id": selection.selected_model,
+            "provider": selection.provider,
+            "display_name": selection.display_name,
+            "selection_confidence": selection.selection_confidence,
+            "selection_reasoning": selection.selection_reasoning,
+        },
+        "ranked_candidates": [candidate.model_dump() for candidate in selection.ranked_candidates],
+    }

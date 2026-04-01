@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field
+from app.schemas.routing import SelectedModelResult
 
 
 class AnalyzeRequest(BaseModel):
@@ -57,6 +58,7 @@ class AnalyzeResponse(BaseModel):
     complexity_band: Literal["very_low", "low", "medium", "high", "very_high"]
     complexity_signals: Dict[str, "ComplexitySignal"]
     complexity_escalation: "ComplexityEscalation"
+    model_selection: SelectedModelResult | None = None
 
 
 class ComplexitySignal(BaseModel):

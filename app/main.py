@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from app.api.routes import router
 from app.intelligence.analyzer import PromptDomainAnalyzer
 from app.intelligence.embeddings import get_embedding_service
+from app.registry.model_registry import ModelRegistry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing embedding service...")
     embedder.initialize()
     app.state.analyzer = PromptDomainAnalyzer(embedder)
+    registry = ModelRegistry()
+    registry.load_models()
+    app.state.model_registry = registry
     logger.info("Analyzer ready.")
     yield
 
