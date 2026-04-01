@@ -54,15 +54,26 @@ def detect_multi_task(prompt: str) -> TaskSignal:
     # Estimate tasks:
     # - If bullets exist, treat each bullet/numbered line as a task.
     # - Else approximate from sequencers and distinct verb variety.
+    #
+    # Important: many real prompts are multi-task via comma-separated verb lists
+    # ("summarize..., extract..., and rewrite...") without explicit sequencers.
     if bullets:
         tasks = min(12, len(bullets))
     else:
         tasks = 1
+
+        # Sequencers strongly imply multiple steps.
         tasks += min(4, len(sequencers) // 2)  # multiple sequencers to count as extra tasks
+
+        # Verb diversity: treat distinct task verbs as deliverables, not just "tone".
+        # 2 verbs -> likely 2 tasks, 3 verbs -> 3 tasks, 5+ -> 4+ tasks.
         if len(distinct_verbs) >= 2:
-            tasks += 1
-        if len(distinct_verbs) >= 4:
-            tasks += 1
+            tasks = max(tasks, 2)
+        if len(distinct_verbs) >= 3:
+            tasks = max(tasks, 3)
+        if len(distinct_verbs) >= 5:
+            tasks = max(tasks, 4)
+
         tasks = min(6, tasks)
 
     tasks = max(1, tasks)

@@ -11,7 +11,14 @@ from app.intelligence.complexity import PromptComplexityEngine
 from app.intelligence.domain_scorer import HybridDomainScorer
 from app.intelligence.embeddings import EmbeddingService
 from app.intelligence.feature_extractor import extract_text_features
-from app.models.schemas import AnalyzeResponse, ComplexitySignal, DomainBreakdownEntry, TextFeatures
+from app.models.schemas import (
+    AnalyzeResponse,
+    ComplexityBoostApplied,
+    ComplexityEscalation,
+    ComplexitySignal,
+    DomainBreakdownEntry,
+    TextFeatures,
+)
 from app.utils.math_utils import normalize_nonneg_sum_to_one, uniform_distribution
 
 
@@ -100,4 +107,17 @@ class PromptDomainAnalyzer:
             complexity_score=complexity.complexity_score,
             complexity_band=complexity.complexity_band,
             complexity_signals=complexity_signals_public,
+            complexity_escalation=ComplexityEscalation(
+                base_score=float(complexity.escalation.get("base_score", complexity.complexity_score)),
+                boosts_applied=[
+                    ComplexityBoostApplied(
+                        rule=str(b.get("rule")),
+                        boost=float(b.get("boost", 0.0)),
+                        reason=str(b.get("reason")),
+                    )
+                    for b in list(complexity.escalation.get("boosts_applied", []))
+                ],
+                total_boost=float(complexity.escalation.get("total_boost", 0.0)),
+                final_score=float(complexity.escalation.get("final_score", complexity.complexity_score)),
+            ),
         )

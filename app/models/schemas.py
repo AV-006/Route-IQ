@@ -1,4 +1,4 @@
-"""Request and response models for the Prompt Domain Weighting API."""
+"""Request and response models for the Prompt Router Intelligence Engine."""
 
 from __future__ import annotations
 
@@ -54,8 +54,9 @@ class AnalyzeResponse(BaseModel):
     per_domain_breakdown: Dict[str, DomainBreakdownEntry]
     text_features: TextFeatures
     complexity_score: float = Field(..., ge=0.0, le=1.0)
-    complexity_band: Literal["low", "medium", "high"]
+    complexity_band: Literal["very_low", "low", "medium", "high", "very_high"]
     complexity_signals: Dict[str, "ComplexitySignal"]
+    complexity_escalation: "ComplexityEscalation"
 
 
 class ComplexitySignal(BaseModel):
@@ -67,6 +68,19 @@ class ComplexitySignal(BaseModel):
     contribution: float = Field(..., ge=0.0)
     evidence: List[str] = Field(default_factory=list)
     detail: Dict[str, object] = Field(default_factory=dict)
+
+
+class ComplexityBoostApplied(BaseModel):
+    rule: str
+    boost: float = Field(..., ge=0.0)
+    reason: str
+
+
+class ComplexityEscalation(BaseModel):
+    base_score: float = Field(..., ge=0.0, le=1.0)
+    boosts_applied: List[ComplexityBoostApplied] = Field(default_factory=list)
+    total_boost: float = Field(..., ge=0.0)
+    final_score: float = Field(..., ge=0.0, le=1.0)
 
 
 AnalyzeResponse.model_rebuild()
