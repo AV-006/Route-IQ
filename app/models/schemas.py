@@ -1,0 +1,73 @@
+"""Request and response models for the Prompt Domain Weighting API."""
+
+from __future__ import annotations
+
+from typing import Dict, List
+
+from pydantic import BaseModel, Field
+
+
+class AnalyzeRequest(BaseModel):
+    """POST /analyze body."""
+
+    prompt: str = Field(..., min_length=1, description="User prompt to analyze")
+
+
+class DomainBreakdownEntry(BaseModel):
+    """Per-domain scoring components before final normalization."""
+
+    semantic_score: float = Field(..., ge=0.0, le=1.0)
+    keyword_score: float = Field(..., ge=0.0, le=1.0)
+    pattern_score: float = Field(..., ge=0.0, le=1.0)
+    intent_score: float = Field(..., ge=0.0, le=1.0)
+    raw_score: float = Field(..., ge=0.0, description="Weighted combination before global normalize")
+
+
+class TextFeatures(BaseModel):
+    """Prompt-level lexical features for debugging and future routing."""
+
+    token_count: int = Field(..., ge=0)
+    avg_word_length: float = Field(..., ge=0.0)
+    special_char_ratio: float = Field(..., ge=0.0, le=1.0)
+    code_symbol_ratio: float = Field(..., ge=0.0, le=1.0)
+    digit_ratio: float = Field(..., ge=0.0, le=1.0)
+    uppercase_ratio: float = Field(..., ge=0.0, le=1.0)
+    newline_count: int = Field(..., ge=0)
+
+
+class AnalyzeResponse(BaseModel):
+    """Full analysis result returned by POST /analyze."""
+
+    prompt: str
+    domain_scores: Dict[str, float]
+    top_domains: List[str]
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    per_domain_breakdown: Dict[str, DomainBreakdownEntry]
+    text_features: TextFeatures
+
+
+class DomainMetadata(BaseModel):
+    """Summary info for one supported domain (GET /domains)."""
+
+    name: str
+    anchor_count: int
+    keyword_count: int
+    pattern_count: int
+    intent_verb_count: int
+
+
+class DomainsListResponse(BaseModel):
+    """GET /domains response."""
+
+    domains: List[DomainMetadata]
+    embedding_model: str
+
+
+class HealthResponse(BaseModel):
+    """GET / root info."""
+
+    service: str
+    version: str
+    status: str
+    embedding_model: str
+    domains_supported: List[str]
